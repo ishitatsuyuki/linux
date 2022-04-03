@@ -57,6 +57,7 @@ struct amdgpu_ctx {
 	unsigned long			ras_counter_ce;
 	unsigned long			ras_counter_ue;
 	uint32_t			stable_pstate;
+	bool				disable_implicit_sync;
 };
 
 struct amdgpu_ctx_mgr {
