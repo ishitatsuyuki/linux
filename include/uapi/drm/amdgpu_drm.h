@@ -226,6 +226,7 @@ union drm_amdgpu_bo_list {
 #define AMDGPU_CTX_OP_QUERY_STATE2	4
 #define AMDGPU_CTX_OP_GET_STABLE_PSTATE	5
 #define AMDGPU_CTX_OP_SET_STABLE_PSTATE	6
+#define AMDGPU_CTX_OP_SET_IMPLICIT_SYNC	7
 
 /* GPU reset status */
 #define AMDGPU_CTX_NO_RESET		0
@@ -265,6 +266,8 @@ union drm_amdgpu_bo_list {
 #define AMDGPU_CTX_STABLE_PSTATE_MIN_SCLK  2
 #define AMDGPU_CTX_STABLE_PSTATE_MIN_MCLK  3
 #define AMDGPU_CTX_STABLE_PSTATE_PEAK  4
+
+#define AMDGPU_CTX_IMPICIT_SYNC_ENABLED 1
 
 struct drm_amdgpu_ctx_in {
 	/** AMDGPU_CTX_OP_* */

@@ -820,6 +820,7 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
 	unsigned long index;
 	unsigned int i;
 	int r;
+	enum dma_resv_usage resv_usage;
 
 	/* p->bo_list could already be assigned if AMDGPU_CHUNK_ID_BO_HANDLES is present */
 	if (cs->in.bo_list_handle) {
@@ -1171,7 +1172,7 @@ static int amdgpu_cs_sync_rings(struct amdgpu_cs_parser *p)
 		struct dma_resv *resv = bo->tbo.base.resv;
 		enum amdgpu_sync_mode sync_mode;
 
-		sync_mode = amdgpu_bo_explicit_sync(bo) ?
+		sync_mode = (amdgpu_bo_explicit_sync(bo) || p->ctx->disable_implicit_sync) ?
 			AMDGPU_SYNC_EXPLICIT : AMDGPU_SYNC_NE_OWNER;
 		r = amdgpu_sync_resv(p->adev, &p->sync, resv, sync_mode,
 				     AMDGPU_SYNC_EXPLICIT, &fpriv->vm);
@@ -1292,11 +1293,11 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
 
 			dma_resv_add_fence(gobj->resv,
 					   &p->jobs[i]->base.s_fence->finished,
-					   DMA_RESV_USAGE_READ);
+					   p->ctx->disable_implicit_sync ? DMA_RESV_USAGE_BOOKKEEP : DMA_RESV_USAGE_READ);
 		}
 
 		/* The gang leader as remembered as writer */
-		dma_resv_add_fence(gobj->resv, p->fence, DMA_RESV_USAGE_WRITE);
+		dma_resv_add_fence(gobj->resv, p->fence, p->ctx->disable_implicit_sync ? DMA_RESV_USAGE_BOOKKEEP : DMA_RESV_USAGE_WRITE);
 	}
 
 	seq = amdgpu_ctx_add_fence(p->ctx, p->entities[p->gang_leader_idx],
