@@ -8,6 +8,7 @@
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/dma-resv.h>
+#include <drm/drm_exec.h>
 #include <drm/gpu_scheduler.h>
 #include <drm/panfrost_drm.h>
 
@@ -275,13 +276,13 @@ static void panfrost_attach_object_fences(struct drm_gem_object **bos,
 int panfrost_job_push(struct panfrost_job *job)
 {
 	struct panfrost_device *pfdev = job->pfdev;
-	struct ww_acquire_ctx acquire_ctx;
+	struct drm_exec exec;
 	int ret = 0;
 
-	ret = drm_gem_lock_reservations(job->bos, job->bo_count,
-					    &acquire_ctx);
+	drm_exec_init(&exec, true);
+	ret = drm_exec_prepare_array(&exec, job->bos, job->bo_count, 1);
 	if (ret)
-		return ret;
+		goto unlock;
 
 	mutex_lock(&pfdev->sched_lock);
 	drm_sched_job_arm(&job->base);
@@ -305,7 +306,7 @@ int panfrost_job_push(struct panfrost_job *job)
 				      job->render_done_fence);
 
 unlock:
-	drm_gem_unlock_reservations(job->bos, job->bo_count, &acquire_ctx);
+	drm_exec_fini(&exec);
 
 	return ret;
 }

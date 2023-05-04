@@ -7,6 +7,7 @@ config DRM_PANFROST
 	depends on !GENERIC_ATOMIC64    # for IOMMU_IO_PGTABLE_LPAE
 	depends on MMU
 	select DRM_SCHED
+	select DRM_EXEC
 	select IOMMU_SUPPORT
 	select IOMMU_IO_PGTABLE_LPAE
 	select DRM_GEM_SHMEM_HELPER
