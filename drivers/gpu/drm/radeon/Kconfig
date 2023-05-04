@@ -10,6 +10,7 @@ config DRM_RADEON
         select DRM_KMS_HELPER
         select DRM_TTM
 	select DRM_TTM_HELPER
+	select DRM_EXEC
 	select SND_HDA_COMPONENT if SND_HDA_CORE
 	select POWER_SUPPLY
 	select HWMON
