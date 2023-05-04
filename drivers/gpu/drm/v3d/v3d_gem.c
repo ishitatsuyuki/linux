@@ -10,6 +10,7 @@
 #include <linux/sched/signal.h>
 #include <linux/uaccess.h>
 
+#include <drm/drm_exec.h>
 #include <drm/drm_managed.h>
 #include <drm/drm_syncobj.h>
 #include <uapi/drm/v3d_drm.h>
@@ -249,20 +250,16 @@ v3d_invalidate_caches(struct v3d_dev *v3d)
  * to v3d, so we don't attach dma-buf fences to them.
  */
 static int
-v3d_lock_bo_reservations(struct v3d_job *job,
-			 struct ww_acquire_ctx *acquire_ctx)
+v3d_lock_bo_reservations(struct v3d_job *job, struct drm_exec *exec)
 {
 	int i, ret;
 
-	ret = drm_gem_lock_reservations(job->bo, job->bo_count, acquire_ctx);
+	drm_exec_init(exec, true);
+	ret = drm_exec_prepare_array(exec, job->bo, job->bo_count, 1);
 	if (ret)
-		return ret;
+		goto fail;
 
 	for (i = 0; i < job->bo_count; i++) {
-		ret = dma_resv_reserve_fences(job->bo[i]->resv, 1);
-		if (ret)
-			goto fail;
-
 		ret = drm_sched_job_add_implicit_dependencies(&job->base,
 							      job->bo[i], true);
 		if (ret)
@@ -272,7 +269,7 @@ v3d_lock_bo_reservations(struct v3d_job *job,
 	return 0;
 
 fail:
-	drm_gem_unlock_reservations(job->bo, job->bo_count, acquire_ctx);
+	drm_exec_fini(exec);
 	return ret;
 }
 
@@ -487,7 +484,7 @@ v3d_push_job(struct v3d_job *job)
 static void
 v3d_attach_fences_and_unlock_reservation(struct drm_file *file_priv,
 					 struct v3d_job *job,
-					 struct ww_acquire_ctx *acquire_ctx,
+					 struct drm_exec *exec,
 					 u32 out_sync,
 					 struct v3d_submit_ext *se,
 					 struct dma_fence *done_fence)
@@ -502,7 +499,7 @@ v3d_attach_fences_and_unlock_reservation(struct drm_file *file_priv,
 				   DMA_RESV_USAGE_WRITE);
 	}
 
-	drm_gem_unlock_reservations(job->bo, job->bo_count, acquire_ctx);
+	drm_exec_fini(exec);
 
 	/* Update the return sync object for the job */
 	/* If it only supports a single signal semaphore*/
@@ -679,7 +676,7 @@ v3d_submit_cl_ioctl(struct drm_device *dev, void *data,
 	struct v3d_render_job *render = NULL;
 	struct v3d_job *clean_job = NULL;
 	struct v3d_job *last_job;
-	struct ww_acquire_ctx acquire_ctx;
+	struct drm_exec exec;
 	int ret = 0;
 
 	trace_v3d_submit_cl_ioctl(&v3d->drm, args->rcl_start, args->rcl_end);
@@ -741,7 +738,7 @@ v3d_submit_cl_ioctl(struct drm_device *dev, void *data,
 	if (ret)
 		goto fail;
 
-	ret = v3d_lock_bo_reservations(last_job, &acquire_ctx);
+	ret = v3d_lock_bo_reservations(last_job, &exec);
 	if (ret)
 		goto fail;
 
@@ -785,7 +782,7 @@ v3d_submit_cl_ioctl(struct drm_device *dev, void *data,
 
 	v3d_attach_fences_and_unlock_reservation(file_priv,
 						 last_job,
-						 &acquire_ctx,
+						 &exec,
 						 args->out_sync,
 						 &se,
 						 last_job->done_fence);
@@ -801,8 +798,7 @@ v3d_submit_cl_ioctl(struct drm_device *dev, void *data,
 fail_unreserve:
 	mutex_unlock(&v3d->sched_lock);
 fail_perfmon:
-	drm_gem_unlock_reservations(last_job->bo,
-				    last_job->bo_count, &acquire_ctx);
+	drm_exec_fini(&exec);
 fail:
 	v3d_job_cleanup((void *)bin);
 	v3d_job_cleanup((void *)render);
@@ -829,7 +825,7 @@ v3d_submit_tfu_ioctl(struct drm_device *dev, void *data,
 	struct drm_v3d_submit_tfu *args = data;
 	struct v3d_submit_ext se = {0};
 	struct v3d_tfu_job *job = NULL;
-	struct ww_acquire_ctx acquire_ctx;
+	struct drm_exec exec;
 	int ret = 0;
 
 	trace_v3d_submit_tfu_ioctl(&v3d->drm, args->iia);
@@ -880,7 +876,7 @@ v3d_submit_tfu_ioctl(struct drm_device *dev, void *data,
 		job->base.bo[job->base.bo_count] = bo;
 	}
 
-	ret = v3d_lock_bo_reservations(&job->base, &acquire_ctx);
+	ret = v3d_lock_bo_reservations(&job->base, &exec);
 	if (ret)
 		goto fail;
 
@@ -889,7 +885,7 @@ v3d_submit_tfu_ioctl(struct drm_device *dev, void *data,
 	mutex_unlock(&v3d->sched_lock);
 
 	v3d_attach_fences_and_unlock_reservation(file_priv,
-						 &job->base, &acquire_ctx,
+						 &job->base, &exec,
 						 args->out_sync,
 						 &se,
 						 job->base.done_fence);
@@ -924,7 +920,7 @@ v3d_submit_csd_ioctl(struct drm_device *dev, void *data,
 	struct v3d_submit_ext se = {0};
 	struct v3d_csd_job *job = NULL;
 	struct v3d_job *clean_job = NULL;
-	struct ww_acquire_ctx acquire_ctx;
+	struct drm_exec exec;
 	int ret;
 
 	trace_v3d_submit_csd_ioctl(&v3d->drm, args->cfg[5], args->cfg[6]);
@@ -967,7 +963,7 @@ v3d_submit_csd_ioctl(struct drm_device *dev, void *data,
 	if (ret)
 		goto fail;
 
-	ret = v3d_lock_bo_reservations(clean_job, &acquire_ctx);
+	ret = v3d_lock_bo_reservations(clean_job, &exec);
 	if (ret)
 		goto fail;
 
@@ -993,7 +989,7 @@ v3d_submit_csd_ioctl(struct drm_device *dev, void *data,
 
 	v3d_attach_fences_and_unlock_reservation(file_priv,
 						 clean_job,
-						 &acquire_ctx,
+						 &exec,
 						 args->out_sync,
 						 &se,
 						 clean_job->done_fence);
@@ -1006,8 +1002,7 @@ v3d_submit_csd_ioctl(struct drm_device *dev, void *data,
 fail_unreserve:
 	mutex_unlock(&v3d->sched_lock);
 fail_perfmon:
-	drm_gem_unlock_reservations(clean_job->bo, clean_job->bo_count,
-				    &acquire_ctx);
+	drm_exec_fini(&exec);
 fail:
 	v3d_job_cleanup((void *)job);
 	v3d_job_cleanup(clean_job);
