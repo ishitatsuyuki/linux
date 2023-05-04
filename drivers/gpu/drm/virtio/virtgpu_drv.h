@@ -35,6 +35,7 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_encoder.h>
+#include <drm/drm_exec.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_framebuffer.h>
 #include <drm/drm_gem.h>
@@ -116,7 +117,7 @@ struct virtio_gpu_object_vram {
 	container_of((virtio_gpu_object), struct virtio_gpu_object_vram, base)
 
 struct virtio_gpu_object_array {
-	struct ww_acquire_ctx ticket;
+	struct drm_exec exec;
 	struct list_head next;
 	u32 nents, total;
 	struct drm_gem_object *objs[];

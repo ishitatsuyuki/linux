@@ -171,6 +171,7 @@ struct virtio_gpu_object_array *virtio_gpu_array_alloc(u32 nents)
 
 	objs->nents = 0;
 	objs->total = nents;
+	drm_exec_init(&objs->exec, true);
 	return objs;
 }
 
@@ -214,36 +215,12 @@ void virtio_gpu_array_add_obj(struct virtio_gpu_object_array *objs,
 
 int virtio_gpu_array_lock_resv(struct virtio_gpu_object_array *objs)
 {
-	unsigned int i;
-	int ret;
-
-	if (objs->nents == 1) {
-		ret = dma_resv_lock_interruptible(objs->objs[0]->resv, NULL);
-	} else {
-		ret = drm_gem_lock_reservations(objs->objs, objs->nents,
-						&objs->ticket);
-	}
-	if (ret)
-		return ret;
-
-	for (i = 0; i < objs->nents; ++i) {
-		ret = dma_resv_reserve_fences(objs->objs[i]->resv, 1);
-		if (ret) {
-			virtio_gpu_array_unlock_resv(objs);
-			return ret;
-		}
-	}
-	return ret;
+	return drm_exec_prepare_array(&objs->exec, objs->objs, objs->nents, 1);
 }
 
 void virtio_gpu_array_unlock_resv(struct virtio_gpu_object_array *objs)
 {
-	if (objs->nents == 1) {
-		dma_resv_unlock(objs->objs[0]->resv);
-	} else {
-		drm_gem_unlock_reservations(objs->objs, objs->nents,
-					    &objs->ticket);
-	}
+	drm_exec_fini(&objs->exec);
 }
 
 void virtio_gpu_array_add_fence(struct virtio_gpu_object_array *objs,
