@@ -466,10 +466,6 @@ int drm_gem_objects_lookup(struct drm_file *filp, void __user *bo_handles,
 struct drm_gem_object *drm_gem_object_lookup(struct drm_file *filp, u32 handle);
 long drm_gem_dma_resv_wait(struct drm_file *filep, u32 handle,
 				    bool wait_all, unsigned long timeout);
-int drm_gem_lock_reservations(struct drm_gem_object **objs, int count,
-			      struct ww_acquire_ctx *acquire_ctx);
-void drm_gem_unlock_reservations(struct drm_gem_object **objs, int count,
-				 struct ww_acquire_ctx *acquire_ctx);
 int drm_gem_dumb_map_offset(struct drm_file *file, struct drm_device *dev,
 			    u32 handle, u64 *offset);
 

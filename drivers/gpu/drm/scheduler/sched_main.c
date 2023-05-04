@@ -762,9 +762,8 @@ EXPORT_SYMBOL(drm_sched_job_add_resv_dependencies);
  * @write: whether the job might write the object (so we need to depend on
  * shared fences in the reservation object).
  *
- * This should be called after drm_gem_lock_reservations() on your array of
- * GEM objects used in the job but before updating the reservations with your
- * own fences.
+ * This should be called after locking your GEM objects used in the job but
+ * before updating the reservations with your own fences.
  *
  * Returns:
  * 0 on success, or an error on failing to expand the array.
