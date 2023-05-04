@@ -34,6 +34,7 @@
 #include <drm/amdgpu_drm.h>
 #include <drm/drm_drv.h>
 #include <drm/ttm/ttm_tt.h>
+#include <drm/drm_exec.h>
 #include "amdgpu.h"
 #include "amdgpu_trace.h"
 #include "amdgpu_amdkfd.h"
@@ -332,6 +333,19 @@ void amdgpu_vm_get_pd_bo(struct amdgpu_vm *vm,
 	entry->tv.num_shared = 4;
 	entry->user_pages = NULL;
 	list_add(&entry->tv.head, validated);
+}
+
+/**
+ * amdgpu_vm_lock_pd - lock PD in drm_exec
+ *
+ * @vm: vm providing the BOs
+ * @exec: drm execution context
+ *
+ * Lock the VM root PD in the DRM execution context.
+ */
+int amdgpu_vm_lock_pd(struct amdgpu_vm *vm, struct drm_exec *exec)
+{
+	return drm_exec_prepare_obj(exec, &vm->root.bo->tbo.base, 4);
 }
 
 /**

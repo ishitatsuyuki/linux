@@ -24,6 +24,8 @@
 #include <linux/types.h>
 #include <linux/sched/task.h>
 #include <drm/ttm/ttm_tt.h>
+#include <drm/drm_exec.h>
+
 #include "amdgpu_sync.h"
 #include "amdgpu_object.h"
 #include "amdgpu_vm.h"
@@ -1423,9 +1425,7 @@ struct svm_validate_context {
 	struct svm_range *prange;
 	bool intr;
 	DECLARE_BITMAP(bitmap, MAX_GPU_INSTANCE);
-	struct ttm_validate_buffer tv[MAX_GPU_INSTANCE];
-	struct list_head validate_list;
-	struct ww_acquire_ctx ticket;
+	struct drm_exec exec;
 };
 
 static int svm_range_reserve_bos(struct svm_validate_context *ctx)
@@ -1435,25 +1435,25 @@ static int svm_range_reserve_bos(struct svm_validate_context *ctx)
 	uint32_t gpuidx;
 	int r;
 
-	INIT_LIST_HEAD(&ctx->validate_list);
-	for_each_set_bit(gpuidx, ctx->bitmap, MAX_GPU_INSTANCE) {
-		pdd = kfd_process_device_from_gpuidx(ctx->process, gpuidx);
-		if (!pdd) {
-			pr_debug("failed to find device idx %d\n", gpuidx);
-			return -EINVAL;
+	drm_exec_init(&ctx->exec, true);
+	drm_exec_while_not_all_locked(&ctx->exec) {
+		for_each_set_bit(gpuidx, ctx->bitmap, MAX_GPU_INSTANCE) {
+			pdd = kfd_process_device_from_gpuidx(ctx->process, gpuidx);
+			if (!pdd) {
+				pr_debug("failed to find device idx %d\n", gpuidx);
+				r = -EINVAL;
+				goto unreserve_out;
+			}
+			vm = drm_priv_to_vm(pdd->drm_priv);
+
+			r = amdgpu_vm_lock_pd(vm, &ctx->exec);
+			drm_exec_break_on_contention(&ctx->exec);
+			if (unlikely(r)) {
+				pr_debug("failed %d to reserve bo\n", r);
+				goto unreserve_out;
+			}
 		}
-		vm = drm_priv_to_vm(pdd->drm_priv);
-
-		ctx->tv[gpuidx].bo = &vm->root.bo->tbo;
-		ctx->tv[gpuidx].num_shared = 4;
-		list_add(&ctx->tv[gpuidx].head, &ctx->validate_list);
-	}
-
-	r = ttm_eu_reserve_buffers(&ctx->ticket, &ctx->validate_list,
-				   ctx->intr, NULL);
-	if (r) {
-		pr_debug("failed %d to reserve bo\n", r);
-		return r;
+		drm_exec_continue_on_contention(&ctx->exec);
 	}
 
 	for_each_set_bit(gpuidx, ctx->bitmap, MAX_GPU_INSTANCE) {
@@ -1476,13 +1476,13 @@ static int svm_range_reserve_bos(struct svm_validate_context *ctx)
 	return 0;
 
 unreserve_out:
-	ttm_eu_backoff_reservation(&ctx->ticket, &ctx->validate_list);
+	drm_exec_fini(&ctx->exec);
 	return r;
 }
 
 static void svm_range_unreserve_bos(struct svm_validate_context *ctx)
 {
-	ttm_eu_backoff_reservation(&ctx->ticket, &ctx->validate_list);
+	drm_exec_fini(&ctx->exec);
 }
 
 static void *kfd_svm_page_owner(struct kfd_process *p, int32_t gpuidx)
