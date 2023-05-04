@@ -8,6 +8,7 @@
 #include <linux/shmem_fs.h>
 #include <linux/dma-mapping.h>
 
+#include <drm/drm_exec.h>
 #include <drm/drm_file.h>
 #include <drm/drm_syncobj.h>
 #include <drm/drm_utils.h>
@@ -300,7 +301,7 @@ static int lima_gem_add_deps(struct drm_file *file, struct lima_submit *submit)
 int lima_gem_submit(struct drm_file *file, struct lima_submit *submit)
 {
 	int i, err = 0;
-	struct ww_acquire_ctx ctx;
+	struct drm_exec exec;
 	struct lima_drm_priv *priv = to_lima_drm_priv(file);
 	struct lima_vm *vm = priv->vm;
 	struct drm_syncobj *out_sync = NULL;
@@ -337,8 +338,9 @@ int lima_gem_submit(struct drm_file *file, struct lima_submit *submit)
 		bos[i] = bo;
 	}
 
-	err = drm_gem_lock_reservations((struct drm_gem_object **)bos,
-					submit->nr_bos, &ctx);
+	drm_exec_init(&exec, true);
+	err = drm_exec_prepare_array(&exec, (struct drm_gem_object **)bos,
+				     submit->nr_bos, 0);
 	if (err)
 		goto err_out0;
 
@@ -368,9 +370,7 @@ int lima_gem_submit(struct drm_file *file, struct lima_submit *submit)
 				   submit->bos[i].flags & LIMA_SUBMIT_BO_WRITE ?
 				   DMA_RESV_USAGE_WRITE : DMA_RESV_USAGE_READ);
 	}
-
-	drm_gem_unlock_reservations((struct drm_gem_object **)bos,
-				    submit->nr_bos, &ctx);
+	drm_exec_fini(&exec);
 
 	for (i = 0; i < submit->nr_bos; i++)
 		drm_gem_object_put(&bos[i]->base.base);
@@ -387,8 +387,7 @@ int lima_gem_submit(struct drm_file *file, struct lima_submit *submit)
 err_out2:
 	lima_sched_task_fini(submit->task);
 err_out1:
-	drm_gem_unlock_reservations((struct drm_gem_object **)bos,
-				    submit->nr_bos, &ctx);
+	drm_exec_fini(&exec);
 err_out0:
 	for (i = 0; i < submit->nr_bos; i++) {
 		if (!bos[i])

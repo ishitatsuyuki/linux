@@ -9,6 +9,7 @@ config DRM_LIMA
        depends on COMMON_CLK
        depends on OF
        select DRM_SCHED
+       select DRM_EXEC
        select DRM_GEM_SHMEM_HELPER
        select PM_DEVFREQ
        select DEVFREQ_GOV_SIMPLE_ONDEMAND
