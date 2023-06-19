@@ -888,7 +888,6 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
 				goto out_free_user_pages;
 
 			e->bo_va = amdgpu_vm_bo_find(vm, e->bo);
-			e->range = NULL;
 		}
 		drm_exec_continue_on_contention(&p->exec);
 
