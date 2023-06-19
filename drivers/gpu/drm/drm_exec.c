@@ -224,6 +224,9 @@ int drm_exec_prepare_obj(struct drm_exec *exec, struct drm_gem_object *obj,
 		return -EDEADLK;
 	}
 
+	if (unlikely(ret == -EALREADY))
+		goto reserve_fences;
+
 	if (unlikely(ret))
 		return ret;
 
@@ -231,6 +234,7 @@ int drm_exec_prepare_obj(struct drm_exec *exec, struct drm_gem_object *obj,
 	if (ret)
 		goto error_unlock;
 
+reserve_fences:
 	/* Keep locked when reserving fences fails */
 	return dma_resv_reserve_fences(obj->resv, num_fences);
 
