@@ -670,9 +670,9 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
 	const uint32_t valid_flags = AMDGPU_VM_DELAY_UPDATE |
 		AMDGPU_VM_PAGE_READABLE | AMDGPU_VM_PAGE_WRITEABLE |
 		AMDGPU_VM_PAGE_EXECUTABLE | AMDGPU_VM_MTYPE_MASK |
-		AMDGPU_VM_PAGE_NOALLOC;
+		AMDGPU_VM_PAGE_NOALLOC | AMDGPU_VM_EXPLICIT_SYNC;
 	const uint32_t prt_flags = AMDGPU_VM_DELAY_UPDATE |
-		AMDGPU_VM_PAGE_PRT;
+		AMDGPU_VM_PAGE_PRT | AMDGPU_VM_EXPLICIT_SYNC;
 
 	struct drm_amdgpu_gem_va *args = data;
 	struct drm_gem_object *gobj;
@@ -684,6 +684,7 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
 	struct ttm_validate_buffer tv;
 	struct ww_acquire_ctx ticket;
 	struct list_head list, duplicates;
+	bool sync_unmap;
 	uint64_t va_flags;
 	uint64_t vm_size;
 	int r = 0;
@@ -720,6 +721,8 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
 			args->flags);
 		return -EINVAL;
 	}
+
+	sync_unmap = !(args->flags & AMDGPU_VM_EXPLICIT_SYNC);
 
 	switch (args->operation) {
 	case AMDGPU_VA_OP_MAP:
@@ -778,19 +781,20 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
 				     va_flags);
 		break;
 	case AMDGPU_VA_OP_UNMAP:
-		r = amdgpu_vm_bo_unmap(adev, bo_va, args->va_address);
+		r = amdgpu_vm_bo_unmap(adev, bo_va, args->va_address,
+				       sync_unmap);
 		break;
 
 	case AMDGPU_VA_OP_CLEAR:
 		r = amdgpu_vm_bo_clear_mappings(adev, &fpriv->vm,
 						args->va_address,
-						args->map_size);
+						args->map_size, sync_unmap);
 		break;
 	case AMDGPU_VA_OP_REPLACE:
 		va_flags = amdgpu_gem_va_map_flags(adev, args->flags);
 		r = amdgpu_vm_bo_replace_map(adev, bo_va, args->va_address,
 					     args->offset_in_bo, args->map_size,
-					     va_flags);
+					     va_flags, sync_unmap);
 		break;
 	default:
 		break;
