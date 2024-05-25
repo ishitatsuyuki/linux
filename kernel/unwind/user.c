@@ -4,7 +4,6 @@
 #include <linux/sched.h>
 #include <linux/sched/task_stack.h>
 #include <linux/user_unwind.h>
-#include <linux/sframe.h>
 #include <linux/uaccess.h>
 #include <asm/user_unwind.h>
 

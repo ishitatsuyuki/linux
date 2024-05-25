@@ -3,7 +3,6 @@
 #define _LINUX_USER_UNWIND_H
 
 #include <linux/types.h>
-#include <linux/sframe.h>
 
 enum user_unwind_type {
 	USER_UNWIND_TYPE_AUTO,

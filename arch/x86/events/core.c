@@ -2855,7 +2855,7 @@ static inline int __perf_callchain_user32(struct pt_regs *regs,
 }
 #endif /* CONFIG_IA32_EMULATION */
 
-void __perf_callchain_user(struct perf_callchain_entry_ctx *entry,
+static void __perf_callchain_user(struct perf_callchain_entry_ctx *entry,
 			   struct pt_regs *regs, bool atomic)
 {
 	struct user_unwind_state state;
